@@ -50,7 +50,7 @@ DRY_RUN = True
 # ==================================================
 
 # Binance Spot symbol (examples: ETHUSDT, BTCUSDT)
-SYMBOL = ""
+SYMBOL = "BTCUSDT"
 
 
 # ==================================================

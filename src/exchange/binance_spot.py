@@ -8,6 +8,14 @@ WARNING:
 - You trade actual crypto assets on MAINNET.
 - Misconfiguration may result in financial loss.
 
+DESIGN NOTES:
+- Binance Spot TESTNET does NOT support market data (klines).
+- Therefore:
+    * Market data is ALWAYS fetched from Spot MAINNET
+    * Execution environment is controlled by API keys + config
+- python-binance internally handles correct endpoint routing.
+- We DO NOT manually override API_URL.
+
 This class is intentionally strict and fail-fast.
 """
 
@@ -21,8 +29,6 @@ from config.config import (
     SYMBOL,
     ENABLE_LIVE_TRADING,
     DRY_RUN,
-    BINANCE_SPOT_MAINNET_URL,
-    BINANCE_SPOT_TESTNET_URL,
 )
 from src.utils.data import normalize_kline
 from src.utils.logger import get_logger
@@ -33,7 +39,7 @@ class BinanceSpotExchange:
     Binance Spot exchange abstraction.
 
     Responsibilities:
-    - Fetch closed market candles
+    - Fetch closed market candles (Spot MAINNET only)
     - Place market orders (BUY / SELL)
     - Parse and return execution details
 
@@ -52,8 +58,8 @@ class BinanceSpotExchange:
         # Execution safety gates
         # ==================================================
 
-        # If DRY_RUN is enabled, NO live execution is allowed
-        # Exchange is initialized ONLY for market data access
+        # Prevent ambiguous execution states:
+        # - ENABLE_LIVE_TRADING=False AND DRY_RUN=False is invalid
         if not ENABLE_LIVE_TRADING and not DRY_RUN:
             raise RuntimeError(
                 "Invalid execution state:\n"
@@ -76,35 +82,44 @@ class BinanceSpotExchange:
         api_key = BINANCE.get("API_KEY")
         api_secret = BINANCE.get("API_SECRET")
 
-        # API keys are required ONLY when orders may be sent
+        # API keys are required ONLY if orders may be sent
         if not DRY_RUN:
             if not api_key or not api_secret:
                 raise RuntimeError(
                     "Binance API credentials missing.\n"
                     "API_KEY and API_SECRET are required for "
-                    "SPOT_TESTNET and SPOT_MAINNET execution."
+                    "Spot execution (TESTNET or MAINNET)."
                 )
 
         # ==================================================
         # Initialize Binance client
         # ==================================================
 
-        # In DRY_RUN, client is still initialized to fetch market data
+        # IMPORTANT:
+        # - python-binance defaults to Spot MAINNET endpoints
+        # - We intentionally DO NOT override API_URL
+        # - Market data (klines) always comes from MAINNET
+        # - Execution environment is determined by API keys
         self.client = Client(
             api_key=api_key if not DRY_RUN else None,
             api_secret=api_secret if not DRY_RUN else None,
         )
 
-        # Select correct API base URL
+        self.logger.info(
+            "[MARKET DATA] Binance Spot MAINNET (default python-binance routing)"
+        )
+
+        # ==================================================
+        # Execution environment (logging only)
+        # ==================================================
+
         if env == "SPOT_MAINNET":
-            self.client.API_URL = BINANCE_SPOT_MAINNET_URL
             self.logger.warning(
-                "[LIVE] Binance Spot MAINNET initialized"
+                "[EXECUTION] Binance Spot MAINNET (REAL FUNDS)"
             )
         else:
-            self.client.API_URL = BINANCE_SPOT_TESTNET_URL
             self.logger.warning(
-                "[TESTNET] Binance Spot TESTNET initialized"
+                "[EXECUTION] Binance Spot TESTNET (PAPER FUNDS)"
             )
 
         if DRY_RUN:
@@ -128,7 +143,13 @@ class BinanceSpotExchange:
         limit: int = 200,
     ) -> List[Dict]:
         """
-        Fetch latest closed klines from Binance Spot.
+        Fetch latest CLOSED klines from Binance Spot MAINNET.
+
+        Notes
+        -----
+        - Spot TESTNET does not provide klines
+        - This method always uses MAINNET implicitly
+        - No API key is required for this call
 
         Parameters
         ----------
