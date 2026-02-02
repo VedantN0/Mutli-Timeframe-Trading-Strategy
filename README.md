@@ -48,7 +48,8 @@ The author assumes **NO liability** for:
 This project intentionally focuses on **engineering correctness**, not profit optimization.
 
 It is best thought of as:
-> “A minimal but correct trading engine that you can build on.”
+
+> **“A minimal but correct trading engine that you can build on.”**
 
 ---
 
@@ -60,7 +61,7 @@ It is best thought of as:
 - Not a complete trading system
 - Not suitable for blind deployment with real capital
 
-If your goal is “turn this on and make money”, this project is **not for you**.
+If your goal is *“turn this on and make money”*, this project is **not for you**.
 
 If your goal is to **learn how real trading systems are built**, this project is exactly that.
 
@@ -68,13 +69,13 @@ If your goal is to **learn how real trading systems are built**, this project is
 
 # High-Level Overview
 
-- **Market:** Binance Spot
-- **Leverage:** None
-- **Margin:** None
-- **Direction:** Long-only
-- **Execution:** Market orders on candle close
-- **Decision frequency:** Exactly once per closed candle
-- **Core goal:** Correct execution, not performance
+- **Market:** Binance Spot  
+- **Leverage:** None  
+- **Margin:** None  
+- **Direction:** Long-only  
+- **Execution:** Market orders on candle close  
+- **Decision frequency:** Exactly once per closed candle  
+- **Core goal:** Correct execution, not performance  
 
 The system enforces a **strict separation** between:
 - configuration
@@ -104,8 +105,8 @@ This system supports **three execution modes**, designed to be used **in order**
 - Writes **simulated trades** to CSV
 
 **What it is for:**
-- Understanding how the strategy behaves
-- Verifying logic and signals
+- Understanding strategy behavior
+- Verifying signal correctness
 - Learning the system with **zero risk**
 
 **Funds required:** None  
@@ -119,15 +120,19 @@ This system supports **three execution modes**, designed to be used **in order**
 - Places **real orders** on Binance **Spot Testnet**
 - Uses **fake money**
 - Exercises the **full execution pipeline**
-- Behaves like real trading without financial risk
 
 **What it is for:**
 - Testing order placement
-- Testing exchange behavior
-- Testing latency, fills, and errors
+- Testing exchange responses
+- Understanding execution failures
 
-**Funds required:** Fake only  
-**API keys required:** Testnet keys  
+**Important reality check:**
+- Spot Testnet is **less stable** than Futures Testnet
+- Balances and execution may be inconsistent
+- This mode is for **API behavior testing**, not strategy validation
+
+**Funds required:** Fake  
+**API keys required:** Spot Testnet keys  
 
 ---
 
@@ -142,7 +147,7 @@ This system supports **three execution modes**, designed to be used **in order**
 - Live trading with full responsibility
 
 **Funds required:** Real  
-**API keys required:** Real  
+**API keys required:** Mainnet API keys  
 
 > **You should NEVER start directly on MAINNET.**
 
@@ -152,14 +157,14 @@ This system supports **three execution modes**, designed to be used **in order**
 
 ```
 config/
- └── config.py              # USER-EDITABLE configuration (only file you change)
+ └── config.py                  # USER-EDITABLE configuration (only file you change)
 
 src/
- ├── exchange/              # Binance Spot API abstraction
- ├── execution/             # Live execution engine
- ├── strategy/              # Pure strategy logic
- ├── utils/                 # Logging & CSV persistence
- └── validation/            # Fail-fast config checks
+ ├── exchange/                  # Binance Spot API abstraction
+ ├── execution/                 # Live execution engine
+ ├── strategy/                  # Pure strategy logic
+ ├── utils/                     # Logging & CSV persistence
+ └── validation/                # Fail-fast config checks
 
 data/
  └── live_trades_<SYMBOL>.csv   # Auto-generated trade log
@@ -170,52 +175,7 @@ data/
 
 ---
 
-# How the Strategy Works (Conceptually)
-
-## 1. Multi-Timeframe Design
-
-The strategy separates:
-- **market regime identification**
-- from **entry timing**
-
-- Lower timeframe (e.g. 5m): execution
-- Higher timeframe (derived): trend filter
-
-This avoids counter-trend entries while keeping logic simple.
-
----
-
-## 2. Entry Conditions (Long-Only)
-
-A BUY signal is generated **only on a fully closed candle** when:
-
-1. Price pulls back to a short-term EMA  
-2. Momentum (RSI) is above a threshold  
-3. The candle closes bullish (close > open)  
-4. The higher-timeframe trend is not bearish  
-
-All conditions must be met **on the same candle**.
-
-There is:
-- no intrabar logic
-- no prediction
-- no lookahead
-
----
-
-## 3. Exit Logic
-
-- Fixed, time-based exit
-- Positions are closed after `exit_bars` closed candles
-
-This ensures:
-- deterministic behavior
-- identical logic across all execution modes
-- no discretionary exits
-
----
-
-# Step-by-Step Setup Guide (Beginner Friendly)
+# Step-by-Step Setup Guide
 
 ## Step 1: Download the Code
 
@@ -241,7 +201,7 @@ Check:
 python --version
 ```
 
-Download:
+Download:  
 https://www.python.org/downloads/
 
 > On Windows, ensure **“Add Python to PATH”** is checked.
@@ -293,69 +253,142 @@ SYMBOL = "BTCUSDT"
 
 ---
 
-## Step 6: Run the System
+# API Key Setup (READ CAREFULLY BEFORE RUNNING)
+
+## A. Spot Testnet API Keys (Optional, Advanced)
+
+### What Spot Testnet is (and is not)
+
+- Spot Testnet is intended for **execution testing**
+- It is **not guaranteed to behave like production**
+- It may reject orders even when balances appear valid
+
+### Step-by-step:
+
+1. Visit:
+   https://testnet.binance.vision
+
+2. Log in using your **GitHub account**
+   - This links your testnet identity to Binance
+
+3. Create a **Spot Testnet API key**
+   - Enable:
+     - Reading
+     - Spot Trading
+   - Do NOT enable withdrawals
+
+4. Copy the API key and secret
+
+5. Paste them into `config/config.py`:
+   ```python
+   BINANCE["API_KEY"] = "..."
+   BINANCE["API_SECRET"] = "..."
+   BINANCE["ENV"] = "SPOT_TESTNET"
+   ```
+
+---
+
+## B. Spot Mainnet API Keys (REAL FUNDS – HIGH RISK)
+
+Proceed **only if you fully understand the risks**.
+
+### Step-by-step:
+
+1. Log in to your Binance account
+2. Navigate to **API Management**
+3. Create a **new API key**
+4. Configure permissions:
+   - Reading
+   - Spot & Margin Trading
+   - Withdrawals (DO NOT ENABLE)
+
+5. **Enable IP restriction (STRONGLY RECOMMENDED)**
+   - Add your current public IP address
+   - This prevents unauthorized access if keys are leaked
+
+6. Paste keys into `config/config.py`:
+   ```python
+   BINANCE["API_KEY"] = "..."
+   BINANCE["API_SECRET"] = "..."
+   BINANCE["ENV"] = "SPOT_MAINNET"
+   ENABLE_LIVE_TRADING = True
+   DRY_RUN = False
+   ```
+
+> **Always start with very small capital.**
+
+---
+
+# Step 6: Running the System
+
+From the project root:
 
 ```bash
 python -m src.execution.executor
 ```
 
-If configuration is unsafe or incomplete, the system will **fail immediately** with a clear error message.
+The system will:
+- validate configuration
+- connect to the exchange
+- wait for closed candles
+- make exactly one decision per candle
 
 ---
 
-# Trade Logging & Monitoring
+# How to Stop the System (IMPORTANT)
 
-- All completed trades are written to:
+### Graceful shutdown
+- Press **CTRL + C** in the terminal
+- The process exits immediately
+- No new orders are placed after shutdown
+
+---
+
+## What Happens If You Stop While in a Position
+
+This system intentionally does **NOT**:
+- persist open positions across restarts
+- auto-close positions on shutdown
+- reconcile exchange state on startup
+
+If you stop the system while in a position:
+- The position **remains open on the exchange**
+- On restart, the system **assumes no position**
+- You must manually manage or close that position
+
+This behavior is intentional to keep the system:
+- simple
+- deterministic
+- easy to reason about
+
+---
+
+# Trade Logging
+
+Trades are written to:
 ```
 data/live_trades_<SYMBOL>.csv
 ```
 
-- Each trade is labeled as:
-  - `DRY_RUN`
-  - `SPOT_TESTNET`
-  - `SPOT_MAINNET`
-
-- Logs include:
-  - candle closes
-  - decisions
-  - order placement
-  - execution results
-
-Logs are printed in **UTC time** for consistency.
+Notes:
+- The file is created automatically
+- The `data/` folder must exist
+- Trades are appended, not overwritten
+- Each trade is tagged with its execution environment
 
 ---
 
 # Known Limitations (Intentional)
 
-This system intentionally does **NOT** include:
-
+This system does **NOT** include:
 - Stop-loss logic
 - Take-profit logic
 - Risk management
 - Dynamic position sizing
-- Portfolio logic
-- Multiple simultaneous positions
+- Portfolio management
 - Restart-safe position recovery
 
-These omissions are **by design**, to keep the system:
-- understandable
-- auditable
-- easy to extend
-
----
-
-# How You Are Expected to Improve It
-
-This project is a **foundation**, not a finished product.
-
-Common extensions include:
-- Stop-loss / take-profit rules
-- Balance-aware position sizing
-- Limit orders instead of market orders
-- Persistent state recovery on restart
-- Additional filters or confirmations
-- Performance metrics & analytics
-- Paper-trading dashboards
+These omissions are **intentional** and left as exercises for extension.
 
 ---
 
@@ -366,6 +399,4 @@ This project prioritizes:
 - clarity over complexity
 - safety over automation
 
-If you choose to trade real funds, do so **carefully**, **incrementally**, and **with full understanding of the risks**.
-
-> Always test changes in DRY_RUN or TESTNET before MAINNET.
+> Always test **DRY_RUN → TESTNET → MAINNET**, in that order.
